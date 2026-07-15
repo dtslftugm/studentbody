@@ -56,29 +56,43 @@
     let chartBulanInstance = null;
     let chartAngkatanInstance = null;
 
-    async function fetchData() {
-      try {
-        const response = await fetch(API_URL, {
+async function fetchData() {
+  try {
+    // Tambahkan properti redirect: 'follow' untuk menangani sistem keamanan Google
+    const response = await fetch(API_URL, {
       method: 'GET',
       redirect: 'follow' 
     });
-        globalData = await response.json();
-        
-        // Isi pilihan Dropdown Prodi secara dinamis
-        const prodiSelect = document.getElementById('prodiFilter');
-        const prodis = globalData.pivotBulan.map(item => item["Program Studi"]);
-        prodis.forEach(prodi => {
-          const option = document.createElement('option');
-          option.value = prodi;
-          option.textContent = prodi;
-          prodiSelect.appendChild(option);
-        });
-
-        updateCharts();
-      } catch (error) {
-        console.error("Gagal mengambil data:", error);
-      }
+    
+    globalData = await response.json();
+    
+    // Validasi apakah data berhasil diterima
+    if (globalData.error) {
+      console.error("Error dari Apps Script:", globalData.error);
+      return;
     }
+
+    const prodiSelect = document.getElementById('prodiFilter');
+    const prodis = globalData.pivotBulan.map(item => item["Program Studi"]);
+    
+    // Kosongkan dropdown terlebih dahulu kecuali opsi pertama
+    prodiSelect.innerHTML = '<option value="ALL">Semua Program Studi</option>';
+    
+    prodis.forEach(prodi => {
+      if(prodi) { // pastikan nama prodi tidak kosong
+        const option = document.createElement('option');
+        option.value = prodi;
+        option.textContent = prodi;
+        prodiSelect.appendChild(option);
+      }
+    });
+
+    updateCharts();
+  } catch (error) {
+    console.error("Gagal mengambil data dari API:", error);
+  }
+}
+    
 
     function updateCharts() {
       if (!globalData) return;
