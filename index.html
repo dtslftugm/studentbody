@@ -105,71 +105,94 @@ function fetchData() {
 }
     
 
-    function updateCharts() {
-      if (!globalData) return;
+function updateCharts() {
+  if (!globalData) return;
 
-      const selectedProdi = document.getElementById('prodiFilter').value;
+  const selectedProdi = document.getElementById('prodiFilter').value;
 
-      // 1. Proses Data Chart Bulan
-      let dataBulan = globalData.pivotBulan;
-      if (selectedProdi !== "ALL") {
-        dataBulan = dataBulan.filter(item => item["Program Studi"] === selectedProdi);
-      }
-      
-      // Ambil label bulan (Agustus, September, dll)
-      const bulanKeys = Object.keys(dataBulan[0]).filter(key => key !== "Program Studi");
-      
-      // Jumlahkan nilai per bulan berdasarkan filter
-      const bulanValues = bulanKeys.map(key => {
-        return dataBulan.reduce((sum, item) => sum + Number(item[key] || 0), 0);
-      });
-
-      // Render/Update Chart Bulan
-      if (chartBulanInstance) chartBulanInstance.destroy();
-      const ctxBulan = document.getElementById('chartBulan').getContext('2d');
-      chartBulanInstance = new Chart(ctxBulan, {
-        type: 'line',
-        data: {
-          labels: bulanKeys,
-          datasets: [{
-            label: 'Jumlah Mahasiswa',
-            data: bulanValues,
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            fill: true,
-            tension: 0.3
-          }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-      });
-
-      // 2. Proses Data Chart Angkatan
-      let dataAngkatan = globalData.pivotAngkatan;
-      if (selectedProdi !== "ALL") {
-        dataAngkatan = dataAngkatan.filter(item => item["Program Studi"] === selectedProdi);
-      }
-
-      const angkatanKeys = Object.keys(dataAngkatan[0]).filter(key => key !== "Program Studi");
-      const angkatanValues = angkatanKeys.map(key => {
-        return dataAngkatan.reduce((sum, item) => sum + Number(item[key] || 0), 0);
-      });
-
-      // Render/Update Chart Angkatan
-      if (chartAngkatanInstance) chartAngkatanInstance.destroy();
-      const ctxAngkatan = document.getElementById('chartAngkatan').getContext('2d');
-      chartAngkatanInstance = new Chart(ctxAngkatan, {
-        type: 'bar',
-        data: {
-          labels: angkatanKeys,
-          datasets: [{
-            label: 'Jumlah Mahasiswa',
-            data: angkatanValues,
-            backgroundColor: '#10b981'
-          }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-      });
+  // 1. PROSES DATA CHART BULAN
+  let dataBulan = globalData.pivotBulan;
+  
+  if (selectedProdi !== "ALL") {
+    // Jika memilih prodi spesifik
+    dataBulan = dataBulan.filter(item => item["Program Studi"] === selectedProdi);
+  } else {
+    // PENTING: Jika "Semua", saring agar TIDAK mengikutkan baris Grand Total atau baris kosong
+    dataBulan = dataBulan.filter(item => 
+      item["Program Studi"] && 
+      item["Program Studi"] !== "Grand Total" && 
+      item["Program Studi"].trim() !== ""
+    );
+  }
+  
+  // Ambil label bulan (Agustus, September, dll) dari key objek pertama yang valid
+  const bulanKeys = Object.keys(dataBulan[0]).filter(key => key !== "Program Studi");
+  
+  // Kalkulasi nilai per bulan
+  const bulanValues = bulanKeys.map(key => {
+    if (selectedProdi !== "ALL") {
+      // Jika prodi tunggal, langsung ambil nilainya
+      return Number(dataBulan[0][key] || 0);
+    } else {
+      // Jika "Semua", jumlahkan nilai akumulasi asli dari tiap prodi (tanpa Grand Total)
+      return dataBulan.reduce((sum, item) => sum + Number(item[key] || 0), 0);
     }
+  });
+
+  // Render/Update Chart Bulan
+  if (chartBulanInstance) chartBulanInstance.destroy();
+  const ctxBulan = document.getElementById('chartBulan').getContext('2d');
+  chartBulanInstance = new Chart(ctxBulan, {
+    type: 'line',
+    data: {
+      labels: bulanKeys,
+      datasets: [{
+        label: 'Jumlah Mahasiswa Aktif',
+        data: bulanValues,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        fill: true,
+        tension: 0.1 // Diubah ke 0.1 agar garis chart lebih presisi/tegak
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+
+  // 2. PROSES DATA CHART ANGKATAN
+  let dataAngkatan = globalData.pivotAngkatan;
+  
+  if (selectedProdi !== "ALL") {
+    dataAngkatan = dataAngkatan.filter(item => item["Program Studi"] === selectedProdi);
+  } else {
+    // Saring juga Grand Total untuk chart angkatan
+    dataAngkatan = dataAngkatan.filter(item => 
+      item["Program Studi"] && 
+      item["Program Studi"] !== "Grand Total" && 
+      item["Program Studi"].trim() !== ""
+    );
+  }
+
+  const angkatanKeys = Object.keys(dataAngkatan[0]).filter(key => key !== "Program Studi");
+  const angkatanValues = angkatanKeys.map(key => {
+    return dataAngkatan.reduce((sum, item) => sum + Number(item[key] || 0), 0);
+  });
+
+  // Render/Update Chart Angkatan
+  if (chartAngkatanInstance) chartAngkatanInstance.destroy();
+  const ctxAngkatan = document.getElementById('chartAngkatan').getContext('2d');
+  chartAngkatanInstance = new Chart(ctxAngkatan, {
+    type: 'bar',
+    data: {
+      labels: angkatanKeys,
+      datasets: [{
+        label: 'Jumlah Mahasiswa',
+        data: angkatanValues,
+        backgroundColor: '#10b981'
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+}
 
     // Jalankan saat halaman dimuat
     fetchData();
