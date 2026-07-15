@@ -58,7 +58,10 @@
 
     async function fetchData() {
       try {
-        const response = await fetch(API_URL);
+        const response = await fetch(API_URL, {
+      method: 'GET',
+      redirect: 'follow' 
+    });
         globalData = await response.json();
         
         // Isi pilihan Dropdown Prodi secara dinamis
