@@ -58,15 +58,15 @@
 
 async function fetchData() {
   try {
-    // Tambahkan properti redirect: 'follow' untuk menangani sistem keamanan Google
+    // Memanggil API tanpa custom header tambahan untuk mencegah preflight CORS
     const response = await fetch(API_URL, {
       method: 'GET',
-      redirect: 'follow' 
+      mode: 'cors', // Pastikan menggunakan mode cors bawaan browser
+      redirect: 'follow'
     });
     
     globalData = await response.json();
     
-    // Validasi apakah data berhasil diterima
     if (globalData.error) {
       console.error("Error dari Apps Script:", globalData.error);
       return;
@@ -75,11 +75,10 @@ async function fetchData() {
     const prodiSelect = document.getElementById('prodiFilter');
     const prodis = globalData.pivotBulan.map(item => item["Program Studi"]);
     
-    // Kosongkan dropdown terlebih dahulu kecuali opsi pertama
     prodiSelect.innerHTML = '<option value="ALL">Semua Program Studi</option>';
     
     prodis.forEach(prodi => {
-      if(prodi) { // pastikan nama prodi tidak kosong
+      if(prodi) { 
         const option = document.createElement('option');
         option.value = prodi;
         option.textContent = prodi;
@@ -89,7 +88,7 @@ async function fetchData() {
 
     updateCharts();
   } catch (error) {
-    console.error("Gagal mengambil data dari API:", error);
+    console.error("Gagal mengambil data dari API karena kendala CORS/Network:", error);
   }
 }
     
