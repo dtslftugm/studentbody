@@ -50,35 +50,33 @@
 
   <script>
     // MASUKKAN URL WEB APP APPS SCRIPT 
-    const API_URL = "https://script.google.com/macros/s/AKfycbw05wuT_uScyhFKDWjx9kXvTPSqhH8lBUtHjX4gFtwFS02GWb7_VAsCn10wsVqxcE8X/exec"; 
+    const API_URL = "https://script.google.com/macros/s/AKfycbzh-FhdPmNgUrNS1thjjJbOlO9J5bt4t6axcEX6UBgw1pW5bO7f1dkhVPlsisAUOZCh/exec"; 
 
     let globalData = null;
     let chartBulanInstance = null;
     let chartAngkatanInstance = null;
 
-async function fetchData() {
-  try {
-    // Memanggil API tanpa custom header tambahan untuk mencegah preflight CORS
-    const response = await fetch(API_URL, {
-      method: 'GET',
-      mode: 'cors', // Pastikan menggunakan mode cors bawaan browser
-      redirect: 'follow'
-    });
-    
-    globalData = await response.json();
+function fetchData() {
+  // 1. Buat nama fungsi callback unik agar tidak bentrok
+  const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
+  
+  // 2. Daftarkan fungsi callback ini ke window global agar bisa dipanggil oleh respon Google
+  window[callbackName] = function(data) {
+    globalData = data;
     
     if (globalData.error) {
       console.error("Error dari Apps Script:", globalData.error);
       return;
     }
 
+    // Mengisi data dropdown filter
     const prodiSelect = document.getElementById('prodiFilter');
     const prodis = globalData.pivotBulan.map(item => item["Program Studi"]);
     
     prodiSelect.innerHTML = '<option value="ALL">Semua Program Studi</option>';
     
     prodis.forEach(prodi => {
-      if(prodi) { 
+      if(prodi && prodi !== "Grand Total") { 
         const option = document.createElement('option');
         option.value = prodi;
         option.textContent = prodi;
@@ -86,10 +84,24 @@ async function fetchData() {
       }
     });
 
+    // Render grafik
     updateCharts();
-  } catch (error) {
-    console.error("Gagal mengambil data dari API karena kendala CORS/Network:", error);
-  }
+    
+    // Bersihkan element script setelah selesai digunakan agar DOM tetap bersih
+    document.body.removeChild(script);
+    delete window[callbackName];
+  };
+
+  // 3. Inject tag script secara dinamis untuk meminta data dengan parameter callback
+  const script = document.createElement('script');
+  script.src = `${API_URL}?callback=${callbackName}`;
+  
+  // Jika terjadi error jaringan
+  script.onerror = function() {
+    console.error("Gagal memuat script JSONP. Cek URL API atau status deployment Anda.");
+  };
+
+  document.body.appendChild(script);
 }
     
 
