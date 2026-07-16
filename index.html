@@ -97,32 +97,35 @@
       script.src = API_URL + "?callback=" + callbackName;
       document.body.appendChild(script);
     }
-    
+
     function updateProdiDropdown() {
-      const selectedSheet = document.getElementById('periodeFilter').value;
-      currentSheetData = globalData.data[selectedSheet];
-    
-      const prodiSelect = document.getElementById('prodiFilter');
-      // Simpan pilihan prodi yang dipilih saat ini agar tidak ter-reset ke "ALL" saat ganti periode
-      const previousSelection = prodiSelect.value; 
-    
-      const prodis = currentSheetData.pivotBulan.map(item => item["Program Studi"]);
+  const selectedSheet = document.getElementById('periodeFilter').value;
+  currentSheetData = globalData.data[selectedSheet];
+
+  const prodiSelect = document.getElementById('prodiFilter');
+  const previousSelection = prodiSelect.value; 
+
+  const prodis = currentSheetData.pivotBulan.map(item => item["Program Studi"]);
+  
+  prodiSelect.innerHTML = '<option value="ALL">Semua Program Studi</option>';
+  prodis.forEach(prodi => {
+    // PERBAIKAN: Pastikan nilai prodi dikonversi ke String sebelum memanggil .trim()
+    if (prodi !== undefined && prodi !== null) {
+      const prodiStr = String(prodi).trim();
       
-      prodiSelect.innerHTML = '<option value="ALL">Semua Program Studi</option>';
-      prodis.forEach(prodi => {
-        if(prodi && prodi !== "Grand Total" && prodi.trim() !== "") { 
-          const option = document.createElement('option');
-          option.value = prodi;
-          option.textContent = prodi;
-          prodiSelect.appendChild(option);
-        }
-      });
-    
-      // Kembalikan pilihan prodi sebelumnya jika pilihan tersebut tersedia di sheet baru
-      if ([...prodiSelect.options].some(o => o.value === previousSelection)) {
-        prodiSelect.value = previousSelection;
+      if (prodiStr !== "" && prodiStr !== "Grand Total" && prodiStr !== "COUNTA of Nama Mahasiswa") { 
+        const option = document.createElement('option');
+        option.value = prodiStr;
+        option.textContent = prodiStr;
+        prodiSelect.appendChild(option);
       }
     }
+  });
+
+  if ([...prodiSelect.options].some(o => o.value === previousSelection)) {
+    prodiSelect.value = previousSelection;
+  }
+}
     
     function updateCharts() {
       if (!currentSheetData) return;
