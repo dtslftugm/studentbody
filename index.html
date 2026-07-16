@@ -18,15 +18,21 @@
       <p class="text-slate-500">Visualisasi data interaktif dari Google Sheets</p>
     </header>
 
-    <!-- Filter Interaktif -->
-    <div class="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-wrap gap-4 items-center">
-      <div>
-        <label class="block text-sm font-semibold text-slate-600 mb-1">Pilih Program Studi:</label>
-        <select id="prodiFilter" class="border rounded-lg px-3 py-2 bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none" onchange="updateCharts()">
-          <option value="ALL">Semua Program Studi</option>
-        </select>
-      </div>
-    </div>
+<!-- Filter Interaktif -->
+<div class="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-wrap gap-6 items-center">
+  <div>
+    <label class="block text-sm font-semibold text-slate-600 mb-1">Pilih Periode Semester:</label>
+    <select id="periodeFilter" class="border rounded-lg px-3 py-2 bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none w-64" onchange="updateProdiDropdown(); updateCharts();">
+      <!-- Terisi otomatis oleh API -->
+    </select>
+  </div>
+  <div>
+    <label class="block text-sm font-semibold text-slate-600 mb-1">Pilih Program Studi:</label>
+    <select id="prodiFilter" class="border rounded-lg px-3 py-2 bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none w-64" onchange="updateCharts()">
+      <option value="ALL">Semua Program Studi</option>
+    </select>
+  </div>
+</div>
 
     <!-- Grid Visualisasi -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -53,146 +59,128 @@
     const API_URL = "https://script.google.com/macros/s/AKfycbzh-FhdPmNgUrNS1thjjJbOlO9J5bt4t6axcEX6UBgw1pW5bO7f1dkhVPlsisAUOZCh/exec"; 
 
     let globalData = null;
+    let currentSheetData = null;
     let chartBulanInstance = null;
     let chartAngkatanInstance = null;
-
-function fetchData() {
-  // 1. Buat nama fungsi callback unik agar tidak bentrok
-  const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
-  
-  // 2. Daftarkan fungsi callback ini ke window global agar bisa dipanggil oleh respon Google
-  window[callbackName] = function(data) {
-    globalData = data;
     
-    if (globalData.error) {
-      console.error("Error dari Apps Script:", globalData.error);
-      return;
+    function fetchData() {
+      const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
+      
+      window[callbackName] = function(data) {
+        globalData = data;
+        
+        if (globalData.error) {
+          console.error(globalData.error);
+          return;
+        }
+    
+        // 1. Mengisi pilihan Periode Semester secara dinamis dari seluruh sheet yang terdeteksi
+        const periodeSelect = document.getElementById('periodeFilter');
+        periodeSelect.innerHTML = "";
+        
+        globalData.sheetsAvailable.forEach(sheetName => {
+          const option = document.createElement('option');
+          option.value = sheetName;
+          option.textContent = sheetName;
+          periodeSelect.appendChild(option);
+        });
+    
+        // Jalankan inisialisasi awal dashboard
+        updateProdiDropdown();
+        updateCharts();
+        
+        document.body.removeChild(script);
+        delete window[callbackName];
+      };
+    
+      const script = document.createElement('script');
+      script.src = API_URL + "?callback=" + callbackName;
+      document.body.appendChild(script);
     }
-
-    // Mengisi data dropdown filter
-    const prodiSelect = document.getElementById('prodiFilter');
-    const prodis = globalData.pivotBulan.map(item => item["Program Studi"]);
     
-    prodiSelect.innerHTML = '<option value="ALL">Semua Program Studi</option>';
+    function updateProdiDropdown() {
+      const selectedSheet = document.getElementById('periodeFilter').value;
+      currentSheetData = globalData.data[selectedSheet];
     
-    prodis.forEach(prodi => {
-      if(prodi && prodi !== "Grand Total") { 
-        const option = document.createElement('option');
-        option.value = prodi;
-        option.textContent = prodi;
-        prodiSelect.appendChild(option);
+      const prodiSelect = document.getElementById('prodiFilter');
+      // Simpan pilihan prodi yang dipilih saat ini agar tidak ter-reset ke "ALL" saat ganti periode
+      const previousSelection = prodiSelect.value; 
+    
+      const prodis = currentSheetData.pivotBulan.map(item => item["Program Studi"]);
+      
+      prodiSelect.innerHTML = '<option value="ALL">Semua Program Studi</option>';
+      prodis.forEach(prodi => {
+        if(prodi && prodi !== "Grand Total" && prodi.trim() !== "") { 
+          const option = document.createElement('option');
+          option.value = prodi;
+          option.textContent = prodi;
+          prodiSelect.appendChild(option);
+        }
+      });
+    
+      // Kembalikan pilihan prodi sebelumnya jika pilihan tersebut tersedia di sheet baru
+      if ([...prodiSelect.options].some(o => o.value === previousSelection)) {
+        prodiSelect.value = previousSelection;
       }
-    });
-
-    // Render grafik
-    updateCharts();
-    
-    // Bersihkan element script setelah selesai digunakan agar DOM tetap bersih
-    document.body.removeChild(script);
-    delete window[callbackName];
-  };
-
-  // 3. Inject tag script secara dinamis untuk meminta data dengan parameter callback
-  const script = document.createElement('script');
-  script.src = `${API_URL}?callback=${callbackName}`;
-  
-  // Jika terjadi error jaringan
-  script.onerror = function() {
-    console.error("Gagal memuat script JSONP. Cek URL API atau status deployment Anda.");
-  };
-
-  document.body.appendChild(script);
-}
-    
-
-function updateCharts() {
-  if (!globalData) return;
-
-  const selectedProdi = document.getElementById('prodiFilter').value;
-
-  // 1. PROSES DATA CHART BULAN
-  let dataBulan = globalData.pivotBulan;
-  
-  if (selectedProdi !== "ALL") {
-    // Jika memilih prodi spesifik
-    dataBulan = dataBulan.filter(item => item["Program Studi"] === selectedProdi);
-  } else {
-    // PENTING: Jika "Semua", saring agar TIDAK mengikutkan baris Grand Total atau baris kosong
-    dataBulan = dataBulan.filter(item => 
-      item["Program Studi"] && 
-      item["Program Studi"] !== "Grand Total" && 
-      item["Program Studi"].trim() !== ""
-    );
-  }
-  
-  // Ambil label bulan (Agustus, September, dll) dari key objek pertama yang valid
-  const bulanKeys = Object.keys(dataBulan[0]).filter(key => key !== "Program Studi");
-  
-  // Kalkulasi nilai per bulan
-  const bulanValues = bulanKeys.map(key => {
-    if (selectedProdi !== "ALL") {
-      // Jika prodi tunggal, langsung ambil nilainya
-      return Number(dataBulan[0][key] || 0);
-    } else {
-      // Jika "Semua", jumlahkan nilai akumulasi asli dari tiap prodi (tanpa Grand Total)
-      return dataBulan.reduce((sum, item) => sum + Number(item[key] || 0), 0);
     }
-  });
-
-  // Render/Update Chart Bulan
-  if (chartBulanInstance) chartBulanInstance.destroy();
-  const ctxBulan = document.getElementById('chartBulan').getContext('2d');
-  chartBulanInstance = new Chart(ctxBulan, {
-    type: 'line',
-    data: {
-      labels: bulanKeys,
-      datasets: [{
-        label: 'Jumlah Mahasiswa Aktif',
-        data: bulanValues,
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        fill: true,
-        tension: 0.1 // Diubah ke 0.1 agar garis chart lebih presisi/tegak
-      }]
-    },
-    options: { responsive: true, maintainAspectRatio: false }
-  });
-
-  // 2. PROSES DATA CHART ANGKATAN
-  let dataAngkatan = globalData.pivotAngkatan;
-  
-  if (selectedProdi !== "ALL") {
-    dataAngkatan = dataAngkatan.filter(item => item["Program Studi"] === selectedProdi);
-  } else {
-    // Saring juga Grand Total untuk chart angkatan
-    dataAngkatan = dataAngkatan.filter(item => 
-      item["Program Studi"] && 
-      item["Program Studi"] !== "Grand Total" && 
-      item["Program Studi"].trim() !== ""
-    );
-  }
-
-  const angkatanKeys = Object.keys(dataAngkatan[0]).filter(key => key !== "Program Studi");
-  const angkatanValues = angkatanKeys.map(key => {
-    return dataAngkatan.reduce((sum, item) => sum + Number(item[key] || 0), 0);
-  });
-
-  // Render/Update Chart Angkatan
-  if (chartAngkatanInstance) chartAngkatanInstance.destroy();
-  const ctxAngkatan = document.getElementById('chartAngkatan').getContext('2d');
-  chartAngkatanInstance = new Chart(ctxAngkatan, {
-    type: 'bar',
-    data: {
-      labels: angkatanKeys,
-      datasets: [{
-        label: 'Jumlah Mahasiswa',
-        data: angkatanValues,
-        backgroundColor: '#10b981'
-      }]
-    },
-    options: { responsive: true, maintainAspectRatio: false }
-  });
-}
+    
+    function updateCharts() {
+      if (!currentSheetData) return;
+    
+      const selectedProdi = document.getElementById('prodiFilter').value;
+    
+      // --- 1. PROSES CHART TREN BULANAN ---
+      let dataBulan = currentSheetData.pivotBulan;
+      if (selectedProdi !== "ALL") {
+        dataBulan = dataBulan.filter(item => item["Program Studi"] === selectedProdi);
+      } else {
+        dataBulan = dataBulan.filter(item => item["Program Studi"] && item["Program Studi"] !== "Grand Total");
+      }
+      
+      const bulanKeys = Object.keys(dataBulan[0]).filter(key => key !== "Program Studi");
+      const bulanValues = bulanKeys.map(key => {
+        if (selectedProdi !== "ALL") {
+          return Number(dataBulan[0][key] || 0);
+        } else {
+          return dataBulan.reduce((sum, item) => sum + Number(item[key] || 0), 0);
+        }
+      });
+    
+      if (chartBulanInstance) chartBulanInstance.destroy();
+      const ctxBulan = document.getElementById('chartBulan').getContext('2d');
+      chartBulanInstance = new Chart(ctxBulan, {
+        type: 'line',
+        data: {
+          labels: bulanKeys,
+          datasets: [{ label: 'Jumlah Mahasiswa Aktif', data: bulanValues, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, tension: 0.1 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    
+      // --- 2. PROSES CHART ANGKATAN ---
+      let dataAngkatan = currentSheetData.pivotAngkatan;
+      if (selectedProdi !== "ALL") {
+        dataAngkatan = dataAngkatan.filter(item => item["Program Studi"] === selectedProdi);
+      } else {
+        dataAngkatan = dataAngkatan.filter(item => item["Program Studi"] && item["Program Studi"] !== "Grand Total");
+      }
+    
+      const angkatanKeys = Object.keys(dataAngkatan[0]).filter(key => key !== "Program Studi");
+      const angkatanValues = angkatanKeys.map(key => {
+        return dataAngkatan.reduce((sum, item) => sum + Number(item[key] || 0), 0);
+      });
+    
+      if (chartAngkatanInstance) chartAngkatanInstance.destroy();
+      const ctxAngkatan = document.getElementById('chartAngkatan').getContext('2d');
+      chartAngkatanInstance = new Chart(ctxAngkatan, {
+        type: 'bar',
+        data: {
+          labels: angkatanKeys,
+          datasets: [{ label: 'Jumlah Mahasiswa', data: angkatanValues, backgroundColor: '#10b981' }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
 
     // Jalankan saat halaman dimuat
     fetchData();
